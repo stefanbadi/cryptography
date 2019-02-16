@@ -1,0 +1,226 @@
+<html lang="en">
+<meta charset="ISO-8859-1">
+
+<head>
+  <!--JS Cookie lib-->
+<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+<!--Jquery-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/js/bootstrap.min.js"></script>
+
+<script src="sjcl.js"></script>
+
+
+<!--CSS import-->
+<link rel="stylesheet" type="text/css" href="pgpcss.css">
+
+</head>
+
+<body>
+<h1>A primer on public private cryptography by using SJCL.js (Stanford Javascript Cryptography library)</h1>
+
+<!--File uploader-->
+<div class="fileinput fileinput-new text-center" data-provides="fileinput">
+  <div class="fileinput-new thumbnail img-circle img-raised">
+    <img src="../images/faces/placeholder.png" alt="...">
+   </div>
+   <div class="fileinput-preview fileinput-exists thumbnail img-circle img-raised"></div>
+   <div>
+     <span class="btn btn-raised btn-round btn-default btn-file">
+       <span class="fileinput-new">Select a file... </span>
+       <input id="picinput" type="file" name="myFile" /></span>
+      </div>
+    </div>
+
+<!--script for fileuploader-->
+<script>
+var fileBase64 = '';
+var fileName = '';
+var fileType = '';
+var fileSize = '';
+
+$('#picinput').on('change', function() {
+  var fileReader = new FileReader();
+
+  fileReader.onload = function() {
+    //get the base64 encoded file content
+    fileBase64 = fileReader.result;
+    // get file attributes
+    fileName =  file.name;
+    fileType =  file.type;
+    fileSize =  file.size;
+
+    console.log(fileBase64);
+    // execute encrypton of base64 encoded file
+    encryptData(fileBase64, fileName, fileType, fileSize);
+  };
+
+  var file = $('#picinput').prop('files')[0];
+
+  fileReader.readAsDataURL($('#picinput').prop('files')[0]);
+});
+</script>
+
+<button id="shareFile" class="btn btn-primary"> Encrypt file</button>
+</br>
+</br>
+</br>
+</br>
+
+<div id="area1"> </div>
+</br>
+</br>
+
+<div id="area2"></div>
+</br>
+</br>
+
+<div id="area3"></div>
+
+<div id="area4"></div>
+
+<a href="" id="a">click here to view your file</a>
+
+<script>
+// https://github.com/bitwiseshiftleft/sjcl/wiki/Asymmetric-Crypto
+// show simple encrypt/decrypt
+
+// Create keypair
+var pair = sjcl.ecc.elGamal.generateKeys(256);
+console.log('Keypair objects');
+console.log(pair.pub.get());
+console.log(pair.sec.get());
+
+var cleartext = 'Hello World!';
+var password = 'My passs';
+var password2 = 'My pasxss';
+
+
+// encrypt with pubkey
+console.log('Ciphertexts and cleartexts');
+
+var ct = sjcl.encrypt(pair.pub, cleartext);
+console.log(ct);
+
+// encrypt with password
+var ct2 = sjcl.encrypt(password, cleartext);
+console.log(ct2);
+
+// decrypt with private key
+var pt = sjcl.decrypt(pair.sec, ct);
+console.log(pt);
+
+// decrypt with password
+var pt2 = sjcl.decrypt(password, ct2);
+console.log(pt2);
+
+
+
+// Serializing keys for storage
+var pub = pair.pub.get();
+var sec = pair.sec.get();
+
+// Serialized public key:
+pub = sjcl.codec.base64.fromBits(pub.x.concat(pub.y));
+// uQuXH/yeIpQq8hCWiwCTIMKdsaX...
+console.log('Serialized public key: ' + pub);
+$('#area1').append('Serialized public key: ' + pub);
+
+// Unserialized public key:
+pub = new sjcl.ecc.elGamal.publicKey(
+    sjcl.ecc.curves.c256,
+    sjcl.codec.base64.toBits(pub)
+)
+
+// Serialized private key:
+sec = sjcl.codec.base64.fromBits(sec);
+// IXkJSpYK3RHRaVrd...
+console.log('Serialized private key: ' + sec);
+$('#area2').append('Serialized private key: ' + sec);
+
+
+// Unserialized private key:
+sec = new sjcl.ecc.elGamal.secretKey(
+    sjcl.ecc.curves.c256,
+    sjcl.ecc.curves.c256.field.fromBits(sjcl.codec.base64.toBits(sec))
+)
+
+
+
+// Encrypt the generated private key with the password at registration
+var sec = pair.sec.get();
+sec = sjcl.codec.base64.fromBits(sec)
+console.log('serialized private key: ' + sec);
+
+var privateKeyEncrypted = sjcl.encrypt(password, sec);
+console.log('encrypted private key');
+console.log(privateKeyEncrypted);
+
+var privateKeyDecrypted = sjcl.decrypt(password, privateKeyEncrypted);
+console.log('privateKeyDecrypted: ' + privateKeyDecrypted);
+// Unserialized private key:
+var sec2 = new sjcl.ecc.elGamal.secretKey(
+    sjcl.ecc.curves.c256,
+    sjcl.ecc.curves.c256.field.fromBits(sjcl.codec.base64.toBits(privateKeyDecrypted))
+)
+
+if (sec === privateKeyDecrypted) {
+  console.log('true');
+} else {
+  console.log('falsse');
+}
+
+function encryptData(fileBase64, fileName, fileType, fileSize) {
+
+  var encryptedFileInBase64 = sjcl.encrypt(pair.pub, fileBase64);
+  console.log('encryptedFileInBase64');
+  console.log(encryptedFileInBase64);
+  $('#area3').append('Encrypted file object: ' + encryptedFileInBase64);
+  decryptData(encryptedFileInBase64);
+}
+
+function decryptData(ciphertext) {
+  var fileDecryptedInBase64 = sjcl.decrypt(pair.sec, ciphertext);
+
+  // detect browser
+  var isChrome = !!window.chrome && !!window.chrome.webstore;
+
+  console.log('decrypted file');
+  console.log(fileDecryptedInBase64);
+
+  // for chrome browser
+  if (isChrome) {
+    console.log('browser is chrome');
+    var name = 'myFile.jpg';
+
+
+    var image = new Image();
+    var profilePictureFileSource = fileDecryptedInBase64;
+    if (profilePictureFileSource === null) {
+    } else {
+      image.src = profilePictureFileSource;
+      $('#area4').append(image);
+
+      var a = document.getElementById("a");
+      a.href = URL.createObjectURL(image);
+      a.download = name;
+    }
+
+
+
+  // for FF
+  } else {
+    // browser can decrypt base64 up to around 2MB performance constrained
+    //document.location.href = messageDecrypted;
+    window.open(fileDecryptedInBase64, '_blank').focus();
+
+    //saveAs(blob, "report.pdf");
+  }
+}
+
+</script>
+
+</body>
+
+</html>
